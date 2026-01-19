@@ -1,33 +1,31 @@
-import { PublicKey } from "@solana/web3.js";
-import { COMMENT_MAX_INTERVAL, COMMENT_MIN_INTERVAL, PUMP_MINT } from "./config";
-import { readJson } from "./utils";
+import { SYMBOL, SPREAD_PERCENTAGE, ORDER_SIZE } from "./config";
 
-const genAiCommentStr = `Please Input Key sentence for AI Comment Generate
+const ABOUT_BOT_STR = `Hyperliquid Market Making Bot v1.0
 
-Tip: Please Input concise and core sentense for AI generating.
-     It'd better if there is official link and additional info for token.
-`
+This bot provides liquidity on Hyperliquid DEX by continuously quoting buy and sell prices.
+It earns profits from the bid-ask spread while maintaining market depth.
 
-const aboutBotStr = `Pumpfun Comment Bot v1.0
+Features:
+- Automated market making with configurable spread
+- Real-time order book monitoring
+- Position and risk management
+- Continuous quote updates
 
-This bot helps user to create AI comments on pumpfun.
-The usage method is simple.
+Symbol: ${SYMBOL}
+Spread: ${SPREAD_PERCENTAGE}%
+Order Size: ${ORDER_SIZE}
+`;
 
-1. Generate Comment with AI automatically ,or else Input Comment Manually.
-2. Run Comment Bot
+const API_ENDPOINTS = {
+  EXCHANGE_INFO: "/exchange",
+  USER_STATE: "/info",
+  ORDERBOOK: "/l2Book",
+  TRADES: "/trades",
+  PLACE_ORDER: "/exchange",
+  CANCEL_ORDER: "/exchange",
+};
 
-Clue: Pumpfun, Comment, Bot, Solana
-
-If you have any question on Pumpfun Comment Bot , feel free to contact on https://t.me/wizardev`
-
-const defaultInput = 'Provide discussing e-chat sentences about the token pumpfun on solana in an array format. Exclude any unnecessary words like "```" or "json or javascript" for chatgpt.';
-
-const runBotPanel = (pubkey: PublicKey, isNew: boolean = true) => `Run Bot from ${isNew ? 'New' : 'Existing'} Wallet\n
-PUBKEY: ${pubkey.toBase58()}
-PUMP_MINT: ${PUMP_MINT}`
 export {
-  aboutBotStr,
-  genAiCommentStr,
-  defaultInput,
-  runBotPanel
+  ABOUT_BOT_STR,
+  API_ENDPOINTS
 }

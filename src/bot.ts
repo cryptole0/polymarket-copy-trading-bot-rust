@@ -1,171 +1,325 @@
-import axios from 'axios'
-import nacl from 'tweetnacl'
-import bs58 from 'bs58'
-import { HttpsProxyAgent } from 'https-proxy-agent';
-import { readJson } from './utils';
+import axios from 'axios';
+import WebSocket from 'ws';
+import {
+  BASE_URL,
+  SYMBOL,
+  SPREAD_PERCENTAGE,
+  ORDER_SIZE,
+  MAX_POSITION_SIZE,
+  UPDATE_INTERVAL_MS,
+  PRICE_TICK_SIZE
+} from './config';
+import { log, sleep, roundToTick, formatPrice, formatSize } from './utils';
+import { Order, OrderBook, MarketData, Position, MarketMakingConfig } from './types';
 
+export class MarketMakingBot {
+  private config: MarketMakingConfig;
+  private orderBook: OrderBook | null = null;
+  private currentPosition: Position | null = null;
+  private activeOrders: Map<string, Order> = new Map();
+  private ws: WebSocket | null = null;
+  private isRunning: boolean = false;
 
-function signAndEncodeSignature(privateKeyBase58: any, timestamp: any) {
-    const privateKey = bs58.decode(privateKeyBase58)
-    const keypair = nacl.sign.keyPair.fromSecretKey(privateKey)
-    const message = new TextEncoder().encode(`Sign in to pump.fun: ${timestamp}`)
-    // const message = `Sign in to pump.fun: ${timestamp}`
-    const signature = nacl.sign.detached(message, keypair.secretKey)
+  constructor() {
+    this.config = {
+      symbol: SYMBOL,
+      spreadPercentage: SPREAD_PERCENTAGE,
+      orderSize: ORDER_SIZE,
+      maxPositionSize: MAX_POSITION_SIZE,
+      updateIntervalMs: UPDATE_INTERVAL_MS,
+      priceTickSize: PRICE_TICK_SIZE
+    };
+  }
 
-    if (!nacl.sign.detached.verify(message, signature, keypair.publicKey)) {
-        throw new Error('Signature verification failed')
-    }
+  async start(): Promise<void> {
+    log.info(`Starting market making bot for ${this.config.symbol}`);
+    this.isRunning = true;
 
-    return {
-        timestamp,
-        signature: bs58.encode(signature),
-        publicKey: bs58.encode(keypair.publicKey)
-    }
-}
+    // Initialize connection and fetch initial data
+    await this.initialize();
+    
+    // Start market making loop
+    await this.runMarketMakingLoop();
+  }
 
-// Function to perform login
-async function performLogin(wallet: any) {
+  private async initialize(): Promise<void> {
     try {
-        const timestamp = Date.now().toString()
-        const { signature } = signAndEncodeSignature(
-            bs58.encode(wallet.secretKey),
-            timestamp
-        )
-
-        const payload = {
-            address: wallet.publicKey.toString(),
-            signature: signature,
-            timestamp: timestamp
-        }
-
-        const response = await axios.post(
-            'https://frontend-api.pump.fun/auth/login',
-            payload,
-            {
-                headers: {
-                    Accept: '*/*',
-                    'Content-Type': 'application/json',
-                    Origin: 'https://pump.fun',
-                    'User-Agent':
-                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                    'sec-ch-ua':
-                        '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
-                    'sec-ch-ua-mobile': '?0',
-                    'sec-ch-ua-platform': '"Windows"'
-                }
-            }
-        )
-
-        if (response.headers['set-cookie']) {
-            const authCookie = response.headers['set-cookie'].find((cookie: any) =>
-                cookie.startsWith('auth_token=')
-            )
-            return authCookie ? authCookie.split('=')[1].split(';')[0] : null
-        }
-        console.log("Perform Login: ", response.status);
-        return null
+      // Fetch initial order book
+      await this.fetchOrderBook();
+      
+      // Fetch current position
+      await this.fetchPosition();
+      
+      // Connect to WebSocket for real-time updates
+      await this.connectWebSocket();
+      
+      log.success('Initialization complete');
     } catch (error: any) {
-        console.error('Login error:', error.message)
-        throw error
+      log.error(`Initialization failed: ${error.message}`);
+      throw error;
     }
-}
+  }
 
-// Function to get token
-async function getToken(walletPublicKey: any, authToken: any) {
+  private async fetchOrderBook(): Promise<void> {
     try {
-        const response = await axios.get(
-            `https://frontend-api.pump.fun/token/generateTokenForThread?user=${walletPublicKey}`,
-            {
-                headers: {
-                    accept: 'application/json',
-                    Cookie: `auth_token=${authToken}`,
-                    'User-Agent':
-                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-                }
-            }
-        )
-        return response.data.token
+      const response = await axios.get(`${BASE_URL}/l2Book`, {
+        params: { coin: this.config.symbol }
+      });
+      
+      // Parse order book data (adjust based on actual Hyperliquid API response)
+      const data = response.data;
+      this.orderBook = {
+        bids: data.bids?.map(([price, size]: [string, string]) => ({
+          price: parseFloat(price),
+          size: parseFloat(size)
+        })) || [],
+        asks: data.asks?.map(([price, size]: [string, string]) => ({
+          price: parseFloat(price),
+          size: parseFloat(size)
+        })) || [],
+        timestamp: Date.now()
+      };
+      
+      log.info(`Order book updated: ${this.orderBook.bids.length} bids, ${this.orderBook.asks.length} asks`);
     } catch (error: any) {
-        console.error('Token error:', error.message)
-        throw error
+      log.error(`Failed to fetch order book: ${error.message}`);
+      throw error;
     }
-}
+  }
 
-async function postCommentWithProxy(token: any, mint: any, text: any) {
-    const proxyList = readJson("proxy_list.json");
-    const usedProxies = new Set();
-    const userAgents = [
-        // Chrome on Windows
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
-        // Chrome on macOS
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
-        // Firefox on Windows
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0',
-        // Firefox on macOS
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:102.0) Gecko/20100101 Firefox/102.0',
-        // Safari on macOS
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Safari/605.1.15',
-        // Edge on Windows
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.64',
-        // Samsung Browser on Android
-        'Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/13.2 Chrome/91.0.4472.124 Mobile Safari/537.36',
-        // Chrome on Android
-        'Mozilla/5.0 (Linux; Android 10; SM-A505F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.199 Mobile Safari/537.36',
-        // Safari on iPhone
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 15_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.2 Mobile/15E148 Safari/604.1',
-        // Safari on iPad
-        'Mozilla/5.0 (iPad; CPU OS 15_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.2 Mobile/15E148 Safari/604.1',
-    ];
+  private async fetchPosition(): Promise<void> {
+    try {
+      // Fetch current position from Hyperliquid API
+      // This is a placeholder - adjust based on actual API
+      const response = await axios.get(`${BASE_URL}/info`, {
+        params: { user: 'your_address' } // Replace with actual user address
+      });
+      
+      // Parse position data (adjust based on actual API response)
+      const positionData = response.data; // Adjust based on actual response structure
+      
+      if (positionData && positionData.size !== 0) {
+        this.currentPosition = {
+          symbol: this.config.symbol,
+          size: parseFloat(positionData.size || '0'),
+          entryPrice: parseFloat(positionData.entryPrice || '0'),
+          unrealizedPnl: parseFloat(positionData.unrealizedPnl || '0')
+        };
+        log.info(`Current position: ${formatSize(this.currentPosition.size)} @ ${formatPrice(this.currentPosition.entryPrice)}`);
+      } else {
+        this.currentPosition = null;
+        log.info('No open position');
+      }
+    } catch (error: any) {
+      log.warn(`Failed to fetch position: ${error.message}`);
+      // Continue even if position fetch fails
+    }
+  }
 
-    while (usedProxies.size < proxyList.length) {
-        const randIdx = Math.floor(Math.random() * proxyList.length);
-        if (usedProxies.has(randIdx)) continue;
+  private async connectWebSocket(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        // Connect to Hyperliquid WebSocket (adjust URL and params as needed)
+        const wsUrl = `wss://api.hyperliquid.xyz/ws`;
+        this.ws = new WebSocket(wsUrl);
+        
+        this.ws.on('open', () => {
+          log.success('WebSocket connected');
+          // Subscribe to order book updates
+          this.ws?.send(JSON.stringify({
+            method: 'subscribe',
+            subscription: { type: 'l2Book', coin: this.config.symbol }
+          }));
+          resolve();
+        });
+        
+        this.ws.on('message', (data: WebSocket.Data) => {
+          try {
+            const message = JSON.parse(data.toString());
+            this.handleWebSocketMessage(message);
+          } catch (error: any) {
+            log.error(`Failed to parse WebSocket message: ${error.message}`);
+          }
+        });
+        
+        this.ws.on('error', (error: Error) => {
+          log.error(`WebSocket error: ${error.message}`);
+        });
+        
+        this.ws.on('close', () => {
+          log.warn('WebSocket closed');
+          if (this.isRunning) {
+            // Attempt to reconnect
+            setTimeout(() => this.connectWebSocket(), 5000);
+          }
+        });
+      } catch (error: any) {
+        reject(error);
+      }
+    });
+  }
 
-        usedProxies.add(randIdx);
-        const proxy = proxyList[randIdx];
+  private handleWebSocketMessage(message: any): void {
+    // Handle WebSocket updates (order book, trades, etc.)
+    if (message.type === 'l2Book') {
+      this.updateOrderBookFromWS(message.data);
+    }
+  }
 
-        //  @ts-ignore
-        const proxyUrl = `${proxy.protocols}://${proxy.ip}:${proxy.port}`;
-        console.log(`Using Proxy: ${proxyUrl}`);
-        const agent = new HttpsProxyAgent(proxyUrl);
-        const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+  private updateOrderBookFromWS(data: any): void {
+    // Update order book from WebSocket data
+    if (this.orderBook) {
+      this.orderBook.bids = data.bids?.map(([price, size]: [string, string]) => ({
+        price: parseFloat(price),
+        size: parseFloat(size)
+      })) || this.orderBook.bids;
+      
+      this.orderBook.asks = data.asks?.map(([price, size]: [string, string]) => ({
+        price: parseFloat(price),
+        size: parseFloat(size)
+      })) || this.orderBook.asks;
+      
+      this.orderBook.timestamp = Date.now();
+    }
+  }
 
-        try {
-            const response = await axios.post(
-                'https://client-proxy-server.pump.fun/comment',
-                { text, mint },
-                {
-                    headers: {
-                        accept: '*/*',
-                        'content-type': 'application/json',
-                        origin: 'https://pump.fun',
-                        referer: 'https://pump.fun/',
-                        'x-aws-proxy-token': token,
-                        'User-Agent': randomUserAgent,
-                    },
-                    httpAgent: agent,
-                    timeout: 10000,
-                    validateStatus: (status) =>
-                        status === 200 || status === 201 || status === 429,
-                }
-            );
+  private async runMarketMakingLoop(): Promise<void> {
+    while (this.isRunning) {
+      try {
+        // Refresh order book periodically
+        await this.fetchOrderBook();
+        
+        // Calculate and place quotes
+        await this.updateQuotes();
+        
+        // Check and manage position
+        await this.managePosition();
+        
+        await sleep(this.config.updateIntervalMs);
+      } catch (error: any) {
+        log.error(`Error in market making loop: ${error.message}`);
+        await sleep(this.config.updateIntervalMs);
+      }
+    }
+  }
 
-            return response.status === 200 || response.status === 201;
-        } catch (error) {
-            //  @ts-ignore
-            console.error(`Proxy ${proxyUrl} failed. Error: ${error.message}`);
+  private async updateQuotes(): Promise<void> {
+    if (!this.orderBook || this.orderBook.bids.length === 0 || this.orderBook.asks.length === 0) {
+      log.warn('Order book not available, skipping quote update');
+      return;
+    }
 
-            console.log(error);
+    const midPrice = (this.orderBook.bids[0].price + this.orderBook.asks[0].price) / 2;
+    const spread = midPrice * (this.config.spreadPercentage / 100);
+    
+    const bidPrice = roundToTick(midPrice - spread / 2, this.config.priceTickSize);
+    const askPrice = roundToTick(midPrice + spread / 2, this.config.priceTickSize);
+
+    log.info(`Mid price: ${formatPrice(midPrice)}, Bid: ${formatPrice(bidPrice)}, Ask: ${formatPrice(askPrice)}`);
+
+    // Cancel existing orders
+    await this.cancelAllOrders();
+
+    // Place new orders
+    await this.placeOrder('buy', bidPrice, this.config.orderSize);
+    await this.placeOrder('sell', askPrice, this.config.orderSize);
+  }
+
+  private async placeOrder(side: OrderSide, price: number, size: number): Promise<void> {
+    try {
+      // Check position limits
+      if (side === 'buy' && this.currentPosition) {
+        const newPositionSize = this.currentPosition.size + size;
+        if (Math.abs(newPositionSize) > this.config.maxPositionSize) {
+          log.warn(`Would exceed max position size, skipping ${side} order`);
+          return;
         }
+      }
+
+      if (side === 'sell' && this.currentPosition) {
+        const newPositionSize = this.currentPosition.size - size;
+        if (Math.abs(newPositionSize) > this.config.maxPositionSize) {
+          log.warn(`Would exceed max position size, skipping ${side} order`);
+          return;
+        }
+      }
+
+      // Place order via Hyperliquid API
+      const order: Order = {
+        symbol: this.config.symbol,
+        side,
+        type: 'limit',
+        size,
+        price
+      };
+
+      // This is a placeholder - implement actual API call based on Hyperliquid documentation
+      log.info(`Placing ${side} order: ${formatSize(size)} @ ${formatPrice(price)}`);
+      
+      // Example API call (adjust based on actual Hyperliquid API)
+      // const response = await axios.post(`${BASE_URL}/exchange`, {
+      //   action: { type: 'order', orders: [order] },
+      //   nonce: Date.now(),
+      //   signature: this.signOrder(order)
+      // });
+      
+      // Store active order
+      const orderId = `order_${Date.now()}_${side}`;
+      order.orderId = orderId;
+      order.timestamp = Date.now();
+      this.activeOrders.set(orderId, order);
+      
+      log.success(`Order placed: ${orderId}`);
+    } catch (error: any) {
+      log.error(`Failed to place ${side} order: ${error.message}`);
+    }
+  }
+
+  private async cancelAllOrders(): Promise<void> {
+    for (const [orderId, order] of this.activeOrders) {
+      try {
+        // Cancel order via API
+        log.info(`Cancelling order: ${orderId}`);
+        
+        // Example API call (adjust based on actual Hyperliquid API)
+        // await axios.post(`${BASE_URL}/exchange`, {
+        //   action: { type: 'cancel', orders: [{ orderId }] },
+        //   nonce: Date.now(),
+        //   signature: this.signCancel(orderId)
+        // });
+        
+        this.activeOrders.delete(orderId);
+      } catch (error: any) {
+        log.error(`Failed to cancel order ${orderId}: ${error.message}`);
+      }
+    }
+  }
+
+  private async managePosition(): Promise<void> {
+    if (!this.currentPosition) {
+      return;
     }
 
-    throw new Error("All proxies failed");
-}
+    const positionSize = Math.abs(this.currentPosition.size);
+    
+    if (positionSize > this.config.maxPositionSize * 0.8) {
+      log.warn(`Position size (${formatSize(positionSize)}) approaching limit`);
+      // Implement position reduction logic if needed
+    }
+  }
 
-
-
-export {
-    performLogin,
-    getToken,
-    postCommentWithProxy,
+  async stop(): Promise<void> {
+    log.info('Stopping market making bot...');
+    this.isRunning = false;
+    
+    // Cancel all active orders
+    await this.cancelAllOrders();
+    
+    // Close WebSocket connection
+    if (this.ws) {
+      this.ws.close();
+    }
+    
+    log.success('Bot stopped');
+  }
 }

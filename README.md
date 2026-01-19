@@ -1,87 +1,143 @@
-# PumpFun AI Trading Bot
+# Hyperliquid Market Making Bot
 
-PumpFun is a sophisticated AI-powered trading bot designed to make data-driven decisions and automate trading strategies. It leverages machine learning algorithms to predict market movements and optimize trade execution, making it an ideal tool for algorithmic traders looking for an automated solution to capitalize on market opportunities.
+A sophisticated market making bot for Hyperliquid DEX that provides liquidity by continuously quoting buy and sell prices, earning profits from bid-ask spreads.
 
-# 💬 Contact Me
+## Overview
 
-If you have any question or something, feel free to reach out me anytime via telegram, discord or twitter.
-<br>
-#### 🌹 You're always welcome 🌹
+Market making bots provide liquidity to decentralized exchanges by:
+- Continuously placing buy and sell orders around the current market price
+- Maintaining a spread between bid and ask prices
+- Earning profits from the spread while facilitating trading
+- Managing positions and risk automatically
 
-WhatsApp: [@Leo](https://wa.me/447446455601) <br>
-Telegram: [@Leo](https://t.me/shinnyleo0912) <br>
+This bot is designed for high-volume traders who want to automate liquidity provision on Hyperliquid.
 
 ## Features
 
-- **AI-Powered Trading**: Utilizes advanced machine learning algorithms to analyze market data and predict trends.
-- **Customizable Strategies**: Users can configure the trading strategies to match their preferences and risk tolerance.
-- **Real-Time Market Analysis**: Continuously monitors market conditions to identify optimal trade setups.
-- **Backtesting**: Test trading strategies on historical data to evaluate their performance before going live.
-- **Automatic Trade Execution**: Trades are automatically executed based on pre-defined strategies without manual intervention.
+- **Automated Market Making**: Continuously quotes buy/sell prices with configurable spread
+- **Real-Time Order Book Monitoring**: WebSocket integration for live market data
+- **Position Management**: Automatic position tracking and risk management
+- **Configurable Parameters**: Adjustable spread, order size, position limits, and update intervals
+- **Order Management**: Automatic order placement and cancellation
+- **Error Handling**: Robust error handling with automatic reconnection
+
+## Prerequisites
+
+- Node.js 16+ and npm/yarn
+- TypeScript 5.7+
+- Hyperliquid account and API credentials
+- Private key for signing transactions
 
 ## Installation
 
-To run the PumpFun AI Trading Bot locally, follow the steps below:
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd hyperliquid-market-making-bot
+```
 
-### Prerequisites
+2. Install dependencies:
+```bash
+npm install
+# or
+yarn install
+```
 
-- Python 3.7 or higher
-- Pip (Python package installer)
-- Git (to clone the repository)
+3. Create a `.env` file in the root directory:
+```env
+# Hyperliquid API Configuration
+HYPERLIQUID_API_URL=https://api.hyperliquid.xyz
+HYPERLIQUID_WS_URL=wss://api.hyperliquid.xyz/ws
 
-### Setup Instructions
+# Trading Configuration
+PRIVATE_KEY=your_private_key_here
+SYMBOL=ETH
+BASE_URL=https://api.hyperliquid.xyz
 
-1. Clone the repository to your local machine:
+# Market Making Parameters
+SPREAD_PERCENTAGE=0.1
+ORDER_SIZE=0.01
+MAX_POSITION_SIZE=1.0
+UPDATE_INTERVAL_MS=1000
+PRICE_TICK_SIZE=0.01
+```
 
-    ```bash
-    git clone https://github.com/yourusername/pumpfun-ai-trading-bot.git
-    cd pumpfun-ai-trading-bot
-    ```
+## Configuration
 
-2. Install the required dependencies:
+### Environment Variables
 
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3. Configure the bot with your trading preferences:
-
-    - Set up your API keys from your trading platform (e.g., Binance, Coinbase).
-    - Edit the configuration file (`config.json` or `.env`) with the necessary information.
-
-4. Run the bot:
-
-    ```bash
-    python main.py
-    ```
+- `HYPERLIQUID_API_URL`: Hyperliquid REST API endpoint
+- `HYPERLIQUID_WS_URL`: Hyperliquid WebSocket endpoint
+- `PRIVATE_KEY`: Your private key for signing transactions
+- `SYMBOL`: Trading pair symbol (e.g., ETH, BTC)
+- `SPREAD_PERCENTAGE`: Spread percentage (e.g., 0.1 for 0.1%)
+- `ORDER_SIZE`: Size of each order in base currency
+- `MAX_POSITION_SIZE`: Maximum position size allowed
+- `UPDATE_INTERVAL_MS`: How often to update quotes (milliseconds)
+- `PRICE_TICK_SIZE`: Minimum price movement
 
 ## Usage
 
-Once the bot is set up, it will start analyzing the market data and executing trades automatically based on the selected strategy. You can monitor the trading process by checking the logs or using the web dashboard if applicable.
+### Development Mode
+```bash
+npm run dev
+```
 
-### Configuration
+### Production Mode
+```bash
+npm run build
+npm start
+```
 
-The bot’s behavior can be configured by modifying the `config.json` file or environment variables. Common configurations include:
+## How It Works
 
-- API keys
-- Trading pairs (e.g., BTC/USD)
-- Risk management settings (e.g., stop loss, take profit)
-- Timeframe for trading signals (e.g., 1 minute, 5 minutes)
+1. **Initialization**: The bot connects to Hyperliquid API and WebSocket, fetches current order book and position
+2. **Market Making Loop**: 
+   - Calculates mid price from current order book
+   - Places bid order below mid price and ask order above mid price
+   - Maintains configured spread percentage
+   - Updates orders periodically based on market conditions
+3. **Position Management**: Monitors position size and prevents exceeding limits
+4. **Order Management**: Automatically cancels and replaces orders to maintain quotes
+
+## Risk Management
+
+- Maximum position size limits prevent excessive exposure
+- Automatic order cancellation on shutdown
+- Position monitoring and warnings
+- Configurable risk parameters
+
+## Important Notes
+
+⚠️ **Disclaimer**: Trading cryptocurrencies involves substantial risk. This bot is provided as-is for educational purposes. Always:
+- Test thoroughly on testnet before using real funds
+- Start with small position sizes
+- Monitor the bot closely
+- Understand the risks involved
+- The creators are not responsible for any financial losses
+
+## API Integration
+
+This bot uses the Hyperliquid API. You may need to:
+1. Sign up for Hyperliquid API access
+2. Generate API keys
+3. Implement proper authentication/signing based on Hyperliquid's requirements
+4. Adjust API endpoints and request formats based on the latest Hyperliquid documentation
+
+**Note**: The current implementation includes placeholder API calls. You'll need to implement the actual Hyperliquid API integration based on their official documentation.
 
 ## Contributing
 
-We welcome contributions! If you'd like to contribute to the development of PumpFun, please follow these steps:
-
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature-branch`).
-3. Make your changes and commit them (`git commit -am 'Add new feature'`).
-4. Push to your forked repository (`git push origin feature-branch`).
-5. Open a pull request to the main repository.
+Contributions are welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+ISC
 
-## Disclaimer
+## Support
 
-Please note that the use of this trading bot carries inherent risks due to the volatility of the market. The creators of this bot are not responsible for any financial losses incurred through the use of this software. Use at your own risk.
+For issues, questions, or contributions, please open an issue on the repository.

@@ -1,34 +1,29 @@
 {
-  "name": "pump.fun-comment-bot",
+  "name": "hyperliquid-market-making-bot",
   "version": "1.0.0",
-  "description": "This is comment bot which is running on pump.fun",
-  "main": "index.ts",
+  "description": "Market making bot for Hyperliquid DEX - provides liquidity by quoting buy/sell prices and earning from spreads",
+  "main": "src/index.ts",
   "dependencies": {
-    "@solana/web3.js": "^1.95.5",
     "axios": "^1.7.8",
-    "bs58": "^6.0.0",
     "chalk": "^5.4.1",
     "dotenv": "^16.4.7",
-    "fs": "^0.0.1-security",
-    "https-proxy-agent": "^7.0.6",
-    "openai": "^4.77.0",
-    "readline": "^1.3.0",
-    "socks-proxy-agent": "^8.0.5",
+    "ws": "^8.18.0",
     "ts-node": "^10.9.2",
-    "tweetnacl": "^1.0.3",
     "typescript": "^5.7.2"
   },
   "scripts": {
     "dev": "ts-node src/index.ts",
-    "test": "ts-node src/test.ts"
+    "build": "tsc",
+    "start": "node dist/index.js"
   },
   "keywords": [
-    "pumpfun",
-    "comment",
-    "bot",
-    "solana",
-    "dex"
+    "hyperliquid",
+    "market-making",
+    "liquidity",
+    "trading-bot",
+    "dex",
+    "defi"
   ],
-  "author": "https://github.com/wizasol",
+  "author": "",
   "license": "ISC"
 }

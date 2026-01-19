@@ -1,55 +1,35 @@
-import { createInterface } from 'readline';
-import { CommandLineFunction } from './types';
-import fs from 'fs';
+import chalk from 'chalk';
 
-const rl = createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
+// Logging utilities
+const log = {
+  info: (message: string) => console.log(chalk.blue(`[INFO] ${message}`)),
+  success: (message: string) => console.log(chalk.green(`[SUCCESS] ${message}`)),
+  error: (message: string) => console.error(chalk.red(`[ERROR] ${message}`)),
+  warn: (message: string) => console.warn(chalk.yellow(`[WARN] ${message}`)),
+  debug: (message: string) => console.log(chalk.gray(`[DEBUG] ${message}`)),
+};
 
-const cliMenu = (headline: string, command_line: CommandLineFunction[], clear: boolean = true) => {
-  if (clear) console.clear()
-  const title = headline == "" ? `${command_line.map((ele, idx) => `\n\t[${idx + 1}] ${ele.command}`)}\n` : `${headline}\n${command_line.map((ele, idx) => `\n\t[${idx + 1}] ${ele.command}`)}\n`
-  const temp = () => rl.question(title, (answer: string) => {
-    console.clear()
-    try {
-      const i = parseInt(answer) - 1
-      command_line[i].fn()
-    } catch (error) {
-      console.error(" =============== Invalid Input =============== \n");
-      temp()
-    }
-  })
+// Utility functions
+const sleep = (ms: number): Promise<void> => {
+  return new Promise(resolve => setTimeout(resolve, ms));
+};
 
-  temp()
-}
+const roundToTick = (price: number, tickSize: number): number => {
+  return Math.round(price / tickSize) * tickSize;
+};
 
+const formatPrice = (price: number, decimals: number = 2): string => {
+  return price.toFixed(decimals);
+};
 
-// Function to read JSON file
-const readJson = (filename: string = "data.json"): string[] => {
-  if (!fs.existsSync(filename)) {
-    // If the file does not exist, create an empty array
-    fs.writeFileSync(filename, '[]', 'utf-8');
-  }
-  const data = fs.readFileSync(filename, 'utf-8');
-  return JSON.parse(data) as string[];
-}
-
-// Function to write JSON file
-const writeJson = (data: string[], filename: string = "data.json",): void => {
-  fs.writeFileSync(filename, JSON.stringify(data, null, 4), 'utf-8');
-}
-
-// Function to add JSON file
-const addJson = (data: string[], filename: string = "data.json",): void => {
-  const oldData = readJson(filename)
-  writeJson([...oldData, ...data], filename)
-}
+const formatSize = (size: number, decimals: number = 4): string => {
+  return size.toFixed(decimals);
+};
 
 export {
-  cliMenu,
-  rl,
-  readJson,
-  writeJson,
-  addJson,
+  log,
+  sleep,
+  roundToTick,
+  formatPrice,
+  formatSize
 }
