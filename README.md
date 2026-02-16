@@ -146,12 +146,6 @@ To change risk or strategy: edit `.env` (e.g. `COPY_SIZE`, `MAX_ORDER_SIZE_USD`,
 
 ---
 
-## 0. 📁 Project Structure
-
-> **New to the codebase?** See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for folder layout, binaries (setup, wallet, monitor, tools), and where to customize.
-
----
-
 ## 1. Quick Start
 
 **Minimal path** (after Rust is installed and repo cloned):
