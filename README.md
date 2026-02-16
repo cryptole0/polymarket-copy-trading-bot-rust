@@ -1,194 +1,481 @@
-# Hyperliquid Market Making Bot
+# Polymarket Copy Trading Bot
 
-A market making bot for Hyperliquid DEX that provides liquidity by continuously quoting buy and sell prices, earning profits from bid-ask spreads.
+> A high-performance Rust-based automated trading bot that copies trades from successful Polymarket traders (whales) in real-time.
 
-## Overview
+---
 
-Market making bots provide liquidity to decentralized exchanges by:
-- Continuously placing buy and sell orders around the current market price
-- Maintaining a spread between bid and ask prices
-- Earning profits from the spread while facilitating trading
-- Managing positions and risk automatically
+## Table of Contents
 
-This bot is designed for high-volume traders who want to automate liquidity provision on Hyperliquid.
+0. [Project Structure](#0-project-structure) — *New traders: start here*
+1. [Quick Start](#1-quick-start)
+2. [Installation](#2-installation)
+3. [Configuration](#3-configuration)
+4. [Running the Bot](#4-running-the-bot)
+5. [CLI Commands](#5-cli-commands)
+6. [How It Works](#6-how-it-works)
+7. [Features](#7-features)
+8. [Requirements](#8-requirements)
+9. [Documentation](#9-documentation)
+10. [Troubleshooting](#10-troubleshooting)
+11. [Security](#11-security)
+12. [Disclaimer](#12-disclaimer)
 
-## Features
+---
 
-- **Automated Market Making**: Continuously quotes buy/sell prices with configurable spread
-- **Real-Time Order Book Monitoring**: WebSocket integration for live market data
-- **Position Management**: Automatic position tracking and risk management
-- **Configurable Parameters**: Adjustable spread, order size, position limits, and update intervals
-- **Order Management**: Automatic order placement and cancellation
-- **Error Handling**: Robust error handling with automatic reconnection
-- **Telegram Notifications**: Real-time alerts and monitoring via Telegram bot
+## 0. 📁 Project Structure
 
-## Prerequisites
+> **New to the codebase?** See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for a trader-friendly guide to the folder layout, binaries by purpose (setup, wallet, monitor, tools), and where to customize.
 
-- Node.js 16+ and npm/yarn
-- TypeScript 5.7+
-- Hyperliquid account and API credentials
-- Private key for signing transactions
+---
 
-## Installation
+## 1. Quick Start
 
-1. Clone the repository:
+**For beginners:** Follow these 5 steps to get started:
+
+```bash
+# 1. Install Rust (if not already installed)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# 2. Clone the repository
+git clone <repository-url>
+cd rust
+
+# 3. Copy and configure .env file
+cp .env.example .env
+# Edit .env with your settings (see Configuration section)
+
+# 4. Validate setup
+cargo run --release setup setup
+cargo run --release setup system-status
+
+# 5. Approve tokens and start bot
+cargo run --release wallet check-allowance
+cargo run --release main run
+```
+
+> **💡 Windows users:** Download Rust from [rustup.rs](https://rustup.rs/) and follow the installer. Then use PowerShell/CMD instead of bash.
+
+---
+
+## 2. 📦 Installation
+
+### 2.1 Prerequisites
+
+- **Rust** 1.70 or later
+- **Polygon network** access (for Polygon mainnet trading)
+- **RPC provider** API key (Alchemy or Chainstack recommended)
+
+### 2.2 Install Rust
+
+**Windows:**
+1. Download and run the installer from https://rustup.rs/
+2. Follow the installation wizard
+3. Restart your terminal/PowerShell
+
+**macOS/Linux:**
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+```
+
+### 2.3 Verify Installation
+
+```bash
+rustc --version
+cargo --version
+```
+
+### 2.4 Clone Repository
+
 ```bash
 git clone <repository-url>
-cd hyperliquid-market-making-bot
+cd rust
 ```
 
-2. Install dependencies:
+---
+
+## 3. ⚙️ Configuration
+
+### 3.1 Quick Setup Wizard (Recommended)
+
+The easiest way to configure the bot is using the interactive setup wizard:
+
 ```bash
-npm install
-# or
-yarn install
+cargo run --release setup setup
 ```
 
-3. Create a `.env` file in the root directory:
+The wizard will guide you through:
+
+1. **Target whale address** - The trader you want to copy
+2. **Wallet configuration** - Your private key and funder address
+3. **RPC provider** - Alchemy API key
+4. **Trading strategy** - PERCENTAGE, FIXED, or ADAPTIVE
+5. **Risk limits** - Max/min order sizes, position caps, daily volume limits
+6. **Multipliers** - Single and tiered multipliers
+
+The wizard automatically:
+- ✅ Creates your `.env` file
+- ✅ Backs up existing `.env` if present
+- ✅ Preserves important configuration sections
+
+### 3.2 Manual Configuration
+
+If you prefer manual setup, create a `.env` file from the example:
+
+```bash
+# Windows (PowerShell)
+Copy-Item .env.example .env
+
+# macOS/Linux
+cp .env.example .env
+```
+
+### 3.3 Required Settings
+
+Edit `.env` and set the following **required** variables:
+
 ```env
-# Hyperliquid API Configuration
-HYPERLIQUID_API_URL=https://api.hyperliquid.xyz
-HYPERLIQUID_WS_URL=wss://api.hyperliquid.xyz/ws
+# Wallet Configuration
+PRIVATE_KEY=your_private_key_here              # 64 hex chars, no 0x prefix
+FUNDER_ADDRESS=your_funder_address_here        # 40 hex chars (Gnosis Safe or EOA)
 
 # Trading Configuration
-PRIVATE_KEY=your_private_key_here
-SYMBOL=ETH
-BASE_URL=https://api.hyperliquid.xyz
+TARGET_WHALE_ADDRESS=target_whale_address      # 40 hex chars, no 0x prefix
 
-# Market Making Parameters
-SPREAD_PERCENTAGE=0.1
-ORDER_SIZE=0.01
-MAX_POSITION_SIZE=1.0
-UPDATE_INTERVAL_MS=1000
-PRICE_TICK_SIZE=0.01
+# RPC Provider (choose ONE)
+ALCHEMY_API_KEY=your_alchemy_api_key           # Recommended
+# OR
+CHAINSTACK_API_KEY=your_chainstack_api_key     # Alternative
 
-# Telegram Configuration (Optional)
-TELEGRAM_ENABLED=true
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-TELEGRAM_CHAT_ID=your_telegram_chat_id
+# Trading Strategy
+COPY_STRATEGY=PERCENTAGE                        # PERCENTAGE, FIXED, or ADAPTIVE
+COPY_SIZE=10.0                                  # % for PERCENTAGE, $ for FIXED, base % for ADAPTIVE
+TRADE_MULTIPLIER=1.0                            # Single multiplier (1.0 = normal)
+
+# Risk Limits
+MAX_ORDER_SIZE_USD=100.0                       # Maximum order size
+MIN_ORDER_SIZE_USD=1.0                          # Minimum order size
+# MAX_POSITION_SIZE_USD=500.0                   # Optional: Max position per market
+# MAX_DAILY_VOLUME_USD=1000.0                  # Optional: Max daily volume
+
+# Trading Flags
+ENABLE_TRADING=true                             # Enable trading (false = no trades)
+MOCK_TRADING=false                              # Mock mode (true = test mode, no real trades)
 ```
 
-## Configuration
+> **⚠️ Important for Gnosis Safe:**
+> - `PRIVATE_KEY` = Private key that can sign on behalf of your Gnosis Safe
+> - `FUNDER_ADDRESS` = Your Gnosis Safe address (proxy wallet)
+> - These addresses will be **different**!
+>
+> **For regular EOA wallets:**
+> - `PRIVATE_KEY` = Your wallet's private key
+> - `FUNDER_ADDRESS` = Same address as the private key
 
-### Environment Variables
+### 3.4 Trading Strategies
 
-- `HYPERLIQUID_API_URL`: Hyperliquid REST API endpoint
-- `HYPERLIQUID_WS_URL`: Hyperliquid WebSocket endpoint
-- `PRIVATE_KEY`: Your private key for signing transactions
-- `SYMBOL`: Trading pair symbol (e.g., ETH, BTC)
-- `SPREAD_PERCENTAGE`: Spread percentage (e.g., 0.1 for 0.1%)
-- `ORDER_SIZE`: Size of each order in base currency
-- `MAX_POSITION_SIZE`: Maximum position size allowed
-- `UPDATE_INTERVAL_MS`: How often to update quotes (milliseconds)
-- `PRICE_TICK_SIZE`: Minimum price movement
-- `TELEGRAM_ENABLED`: Enable/disable Telegram notifications (true/false)
-- `TELEGRAM_BOT_TOKEN`: Your Telegram bot token from @BotFather
-- `TELEGRAM_CHAT_ID`: Your Telegram chat ID for receiving notifications
+The bot supports three trading strategies:
 
-## Usage
+#### **PERCENTAGE** (Recommended)
+- Copies a fixed percentage of the trader's order size
+- Example: `COPY_SIZE=10.0` = 10% of trader's order
+- Best for: Consistent risk exposure relative to trader
 
-### Development Mode
+#### **FIXED**
+- Always uses a fixed dollar amount per trade
+- Example: `COPY_SIZE=50.0` = $50 per trade
+- Best for: Fixed risk per trade, budget-conscious trading
+
+#### **ADAPTIVE**
+- Dynamically adjusts percentage based on trade size
+- Higher % for small trades, lower % for large trades
+- Requires: `ADAPTIVE_MIN_PERCENT`, `ADAPTIVE_MAX_PERCENT`, `ADAPTIVE_THRESHOLD_USD`
+- Best for: Balancing risk across different trade sizes
+
+
+### 3.5 Optional Settings
+
+- Tiered multipliers
+- Adaptive strategy parameters
+- Risk management (circuit breakers)
+- Advanced features
+
+### 3.6 Validate Configuration
+
+Before running, validate your configuration:
+
 ```bash
-npm run dev
+cargo run --release setup system-status
 ```
 
-### Production Mode
+This checks:
+- ✅ Configuration format
+- ✅ Wallet balance
+- ✅ Network connectivity
+- ✅ Token approvals
+- ✅ Trading strategy settings
+- ✅ Risk limits
+
+---
+
+## 4.  Running the Bot
+
+### 4.1 First-Time Setup
+
+**1. Approve Tokens for Trading:**
+
 ```bash
-npm run build
-npm start
+cargo run --release wallet check-allowance
 ```
 
-## How It Works
+- For **Gnosis Safe wallets**, this will show manual approval instructions. Follow them to approve tokens through the Safe interface.
+- For **EOA wallets**, this will auto-approve tokens.
 
-1. **Initialization**: The bot connects to Hyperliquid API and WebSocket, fetches current order book and position
-2. **Market Making Loop**: 
-   - Calculates mid price from current order book
-   - Places bid order below mid price and ask order above mid price
-   - Maintains configured spread percentage
-   - Updates orders periodically based on market conditions
-3. **Position Management**: Monitors position size and prevents exceeding limits
-4. **Order Management**: Automatically cancels and replaces orders to maintain quotes
+**2. Test in Mock Mode (Recommended):**
 
-## Telegram Integration
+Set `MOCK_TRADING=true` in `.env`, then:
 
-The bot includes comprehensive Telegram notifications for monitoring and control:
+```bash
+cargo run --release main run
+```
 
-### Setup
+The bot will show what trades it would make without executing them.
 
-1. Create a Telegram bot by messaging [@BotFather](https://t.me/BotFather) on Telegram
-2. Get your bot token from BotFather
-3. Get your chat ID by messaging your bot and visiting: `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
-4. Add the credentials to your `.env` file
+**3. Start Live Trading:**
 
-### Features
+Set `ENABLE_TRADING=true` and `MOCK_TRADING=false` in `.env`, then:
 
-- **Real-time Notifications**: Receive alerts for:
-  - Bot start/stop events
-  - Order placements and fills
-  - Order cancellations
-  - Position updates
-  - Errors and warnings
-  - Position limit alerts
+```bash
+cargo run --release main run
+```
 
-### Commands
+### 4.2 Running Options
 
-You can interact with the bot via Telegram commands:
+**Using the unified CLI (recommended):**
+```bash
+cargo run --release <group> <command>
+```
 
-- `/start` - Start the bot and see available commands
-- `/help` - Show help message
-- `/status` - Get current bot status, configuration, and position
-- `/position` - View detailed position information
-- `/orders` - List all active orders
+**Using individual binaries:**
+```bash
+cargo run --release --bin pm_bot       # Start bot
+cargo run --release --bin validate_setup
+cargo run --release --bin approve_tokens
+```
 
-### Notifications
+**Helper scripts:**
+```bash
+# Linux/macOS
+./run.sh
 
-The bot automatically sends notifications for:
-- 🚀 Bot startup
-- 🛑 Bot shutdown
-- 🟢 Buy orders placed/filled
-- 🔴 Sell orders placed/filled
-- ❌ Order cancellations
-- 📈 Position updates
-- 🚨 Alerts (position limits, errors)
-- ⚠️ Error messages
+# Windows
+run.bat
+```
 
-## Risk Management
+### 4.3 Stopping the Bot
 
-- Maximum position size limits prevent excessive exposure
-- Automatic order cancellation on shutdown
-- Position monitoring and warnings
-- Configurable risk parameters
+Press `Ctrl+C` for graceful shutdown. The bot will finish current operations before exiting.
 
-## Important Notes
+---
 
-- Test thoroughly on testnet before using real funds
-- Start with small position sizes
-- Monitor the bot closely
-- Understand the risks involved
-- The creators are not responsible for any financial losses
+## 5. 💻 CLI Commands
 
-## API Integration
+The bot uses a unified CLI structure. Get help at any level:
 
-This bot uses the Hyperliquid API. You may need to:
-1. Sign up for Hyperliquid API access
-2. Generate API keys
-3. Implement proper authentication/signing based on Hyperliquid's requirements
-4. Adjust API endpoints and request formats based on the latest Hyperliquid documentation
+```bash
+cargo run --release -- --help              # Main help (all commands)
+cargo run --release -- setup --help       # Setup commands help
+cargo run --release -- wallet --help      # Wallet commands help
+```
 
-**Note**: The current implementation includes placeholder API calls. You'll need to implement the actual Hyperliquid API integration based on their official documentation.
+> **Note:** Use `--` to separate Cargo arguments from binary arguments. The `--help` flag should come after the command group.
 
-## Contributing
+### 5.1 Setup Commands
 
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+```bash
+cargo run --release setup setup          # Interactive setup wizard (creates .env file)
+cargo run --release setup system-status  # Validate config, check balances, connectivity, show strategy
+cargo run --release setup help           # Print all available commands
+```
 
-## License
+**Setup Wizard Features:**
+- ✅ Guides you through all configuration steps
+- ✅ Validates inputs (addresses, keys, etc.)
+- ✅ Backs up existing `.env` file automatically
+- ✅ Shows current strategy and risk limits in system-status
 
-ISC
+### 5.2 Main Bot
 
-## Support
+```bash
+cargo run --release main run             # Start the copy trading bot
+```
 
-For issues, questions, or contributions, please open an issue on the repository.
+### 5.3 Wallet Commands
+
+```bash
+cargo run --release wallet check-proxy-wallet         # Check Gnosis Safe balance/positions
+cargo run --release wallet check-both-wallets <a1> <a2>  # Compare two wallets
+cargo run --release wallet check-my-stats             # View wallet statistics
+cargo run --release wallet check-recent-activity      # View recent trades
+cargo run --release wallet check-positions-detailed   # View detailed positions
+cargo run --release wallet check-pnl-discrepancy      # Analyze P&L discrepancies
+cargo run --release wallet verify-allowance           # Verify token allowance
+cargo run --release wallet check-allowance            # Check and set allowance
+cargo run --release wallet set-token-allowance        # Set ERC1155 allowance
+cargo run --release wallet find-my-eoa                # Find EOA wallet
+cargo run --release wallet find-gnosis-safe-proxy     # Find Gnosis Safe proxy
+```
+
+### 5.4 Position Commands
+
+```bash
+cargo run --release position manual-sell <market> <outcome> <amount>  # Manual sell
+cargo run --release position sell-large        # Sell large positions
+cargo run --release position close-stale       # Close old positions
+cargo run --release position close-resolved    # Close resolved positions
+cargo run --release position redeem-resolved   # Redeem resolved positions
+```
+
+### 5.5 Research Commands
+
+```bash
+cargo run --release research find-best-traders      # Find top performers
+cargo run --release research find-low-risk-traders  # Find low-risk traders
+cargo run --release research scan-best-traders      # Scan top traders
+cargo run --release research scan-from-markets      # Scan from markets
+```
+
+### 5.6 Simulation Commands
+
+```bash
+cargo run --release simulation simulate-profitability [trader]  # Simulate profitability
+cargo run --release simulation simulate-profitability-old [trader]  # Legacy simulation
+cargo run --release simulation run [preset]         # Run batch simulations
+cargo run --release simulation compare [mode]       # Compare results
+cargo run --release simulation aggregate            # Aggregate results
+cargo run --release simulation audit                # Audit algorithm
+cargo run --release simulation fetch-historical [--force] [--days N]  # Fetch historical data
+```
+
+
+**Getting help:**
+```bash
+cargo run --release -- --help              # Show all commands
+cargo run --release -- setup --help        # Show setup commands
+cargo run --release -- wallet --help       # Show wallet commands
+```
+
+> **Note:** Use `--` to separate Cargo arguments from binary arguments. The `--help` flag should come after the command group.
+
+---
+
+## 6. How It Works
+
+### 6.1 Overview
+
+The bot monitors successful traders (whales) and automatically copies their trades with intelligent scaling and risk management.
+
+**Trading Flow:**
+1. **Monitors** blockchain events for trades from target whale (real-time via WebSocket)
+2. **Analyzes** each trade (size, price, market conditions) using multi-layer risk checks
+3. **Calculates** position size (2% default) and price (whale price + buffer)
+4. **Executes** scaled copy trade with optimized order types (FAK/GTD)
+5. **Retries** failed orders with intelligent resubmission (up to 4-5 attempts)
+6. **Protects** with risk guards (circuit breakers) and safety features
+7. **Logs** everything to CSV files for analysis
+
+### 6.2 Strategy Highlights
+
+- **Three Trading Strategies:** PERCENTAGE (default), FIXED, and ADAPTIVE
+- **Flexible Position Sizing:** Configurable percentage or fixed dollar amounts
+- **Multipliers:** Single multiplier for all trades, plus optional tiered multipliers
+- **Risk Limits:** Max/min order size, max position size, max daily volume caps
+- **Tiered Execution:** Different strategies for large (4000+), medium (2000-3999), and small (<2000) trades
+- **Multi-Layer Risk Management:** 4 layers of safety checks prevent dangerous trades
+- **Intelligent Pricing:** Price buffers optimize fill rates (higher for large trades, none for small)
+- **Sport-Specific Adjustments:** Additional buffers for tennis and soccer markets
+- **Price Precision:** Automatic rounding to 3 decimal places (0.001 tick size) for Polymarket compliance
+
+
+---
+
+## 7. Features
+
+### 7.1 Core Features
+
+- ✅ **Real-time trade copying** - WebSocket-based monitoring
+- ✅ **Three trading strategies** - PERCENTAGE, FIXED, and ADAPTIVE
+- ✅ **Intelligent position sizing** - Configurable percentage or fixed amounts
+- ✅ **Multipliers** - Single and tiered multipliers for flexible scaling
+- ✅ **Risk limits** - Max/min order size, position caps, daily volume limits
+- ✅ **Interactive setup wizard** - Guided configuration with validation
+- ✅ **Circuit breakers** - Multi-layer risk management
+- ✅ **Automatic order resubmission** - Handles failures with intelligent retry logic
+- ✅ **Market cache system** - Fast market data lookups
+- ✅ **CSV logging** - Complete trade history
+- ✅ **Live market detection** - Adjusts order types based on market status
+- ✅ **Gnosis Safe support** - Full support for multi-sig wallets
+- ✅ **Price precision** - Automatic rounding to Polymarket's 0.001 tick size
+- ✅ **Smart error handling** - Stops retrying on insufficient balance/allowance errors
+
+### 7.2 Advanced Features
+
+- ✅ **Tiered execution** - Different strategies based on trade size
+- ✅ **Order type optimization** - FAK for immediate fills, GTD for limit orders
+- ✅ **Price buffers** - Dynamic buffers based on trade size and market type
+- ✅ **Sport-specific buffers** - Additional buffers for ATP and Ligue 1 markets
+- ✅ **Rate limit handling** - Automatic retries with exponential backoff
+- ✅ **Cache refresh** - Automatic background cache updates
+
+
+---
+
+## 8.  Requirements
+
+### 8.1 Required
+
+1. **A Polymarket Account** - Sign up at https://polymarket.com
+2. **A Web3 Wallet** - Supports both:
+   - **Regular EOA wallets** (MetaMask, etc.) - PRIVATE_KEY and FUNDER_ADDRESS should match
+   - **Gnosis Safe wallets** - PRIVATE_KEY (signer) and FUNDER_ADDRESS (Safe) will be different
+3. **RPC Provider API Key** - Free tier from:
+   - [Alchemy](https://www.alchemy.com/) (recommended)
+   - [Chainstack](https://chainstack.com/) (alternative)
+4. **The Whale Address** - The trader you want to copy (40-character hex address)
+5. **Token Approvals** - Must approve USDC and Conditional Tokens (see wallet commands)
+
+### 8.2 Recommended
+
+- **Some Coding Knowledge** - Not required, but helpful for troubleshooting
+- **Sufficient Funds** - The bot uses 2% of whale trade size by default (configurable)
+  - Minimum: 50-100 USDC recommended
+  - Gas fees: 0.01-0.1 MATIC recommended
+- **Gnosis Safe Setup** - For enhanced security with multi-sig wallets
+
+---
+
+## 9. Security
+
+### 9.1 Security Best Practices
+
+> **IMPORTANT:**
+> - **Never share your `PRIVATE_KEY`** with anyone
+> - **Never commit your `.env` file** to git (it's already in `.gitignore`)
+> - **Start with small amounts** to test
+> - **Use `MOCK_TRADING=true` first** to verify everything works
+> - **Use a separate wallet** for bot trading (not your main wallet)
+> - **Use Gnosis Safe** for enhanced security (multi-sig wallets)
+
+### 9.2 Wallet Security
+
+**For EOA wallets:**
+- Store private key securely (password manager recommended)
+- Use a dedicated wallet for bot trading
+- Monitor wallet activity regularly
+
+**For Gnosis Safe:**
+- Private key should belong to an authorized signer
+- Set appropriate threshold (2-of-3, 3-of-5, etc.)
+- Monitor Safe activity through Safe interface
+
+---
