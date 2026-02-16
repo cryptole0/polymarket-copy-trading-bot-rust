@@ -1,59 +1,176 @@
 # Polymarket Copy Trading Bot
 
-> A high-performance Rust-based automated trading bot that copies trades from successful Polymarket traders (whales) in real-time.
+> A bot that copies Polymarket whale trades in real time with your own risk limits and position sizing.
+
+**Why this bot over Python or TypeScript bots:** Built in **Rust** for speed and reliability—no interpreter or GC pauses, so you get lower latency and more consistent execution. One compiled binary, minimal CPU/memory use, and strong typing so it keeps running without the runtime surprises common in scripted bots.
 
 ---
 
-## Table of Contents
 
-0. [Project Structure](#0-project-structure) — *New traders: start here*
-1. [Quick Start](#1-quick-start)
-2. [Installation](#2-installation)
-3. [Configuration](#3-configuration)
-4. [Running the Bot](#4-running-the-bot)
-5. [CLI Commands](#5-cli-commands)
-6. [How It Works](#6-how-it-works)
-7. [Features](#7-features)
-8. [Requirements](#8-requirements)
-9. [Documentation](#9-documentation)
-10. [Troubleshooting](#10-troubleshooting)
-11. [Security](#11-security)
-12. [Disclaimer](#12-disclaimer)
+## Step-by-Step Trading Guide
+
+Follow this guide from zero to live copy trading. Each step is designed so you can verify everything before risking real funds.
+
+---
+
+### Step 1 — Get Ready (Before You Trade)
+
+| What you need | Where to get it |
+|---------------|-----------------|
+| **Polymarket account** | [polymarket.com](https://polymarket.com) |
+| **Web3 wallet** (MetaMask or similar) | Export **private key** for a wallet you will use only for this bot |
+| **RPC API key** | Free: [Alchemy](https://www.alchemy.com/) or [Chainstack](https://chainstack.com/) (Polygon network) |
+| **Whale address** | The trader you want to copy (40-character hex; find via [Research commands](#55-research-commands)) |
+| **Funds** | USDC on Polygon (e.g. 50–100 USDC to start) + a little MATIC for gas |
+
+---
+
+### Step 2 — Install the Bot
+
+1. **Install Rust** (one-time):
+   - **Windows:** [rustup.rs](https://rustup.rs/) → run installer → restart terminal.
+   - **macOS/Linux:**  
+     `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh` then `source ~/.cargo/env`
+
+2. **Clone and enter the project:**
+   ```bash
+   git clone <repository-url>
+   cd rust
+   ```
+
+3. **Check versions:**
+   ```bash
+   rustc --version
+   cargo --version
+   ```
+
+---
+
+### Step 3 — Configure (One-Time Setup)
+
+1. **Run the setup wizard** (creates and fills `.env`):
+   ```bash
+   cargo run --release setup setup
+   ```
+
+2. **When prompted, enter:**
+   - **Target whale address** — The trader you’re copying
+   - **Private key** — Your bot wallet’s key (64 hex chars, no `0x`)
+   - **Funder address** — Same as wallet address for normal wallets; for Gnosis Safe, use the Safe address
+   - **RPC API key** — From Alchemy or Chainstack (Polygon)
+   - **Strategy** — `PERCENTAGE` (e.g. copy 10% of each trade), `FIXED` (e.g. $50 per trade), or `ADAPTIVE`
+   - **Risk limits** — Max/min order size (USD), and optionally max position and daily volume
+
+3. **Validate setup:**
+   ```bash
+   cargo run --release setup system-status
+   ```
+   Fix any errors (balance, connectivity, config) before continuing.
+
+---
+
+### Step 4 — Approve Tokens (Required for Real Trades)
+
+The bot needs permission to spend your USDC and conditional tokens:
+
+```bash
+cargo run --release wallet check-allowance
+```
+
+- **EOA (MetaMask-style):** The bot can set allowances for you.
+- **Gnosis Safe:** Follow the on-screen instructions to approve in the Safe UI.
+
+---
+
+### Step 5 — Test in Mock Mode (Strongly Recommended)
+
+Run the bot **without** placing real orders:
+
+1. In `.env` set:
+   - `MOCK_TRADING=true`
+   - `ENABLE_TRADING=true`
+
+2. Start the bot:
+   ```bash
+   cargo run --release main run
+   ```
+
+3. Watch the logs: you’ll see which trades *would* have been placed. Let it run for a while to confirm behavior.
+
+4. Stop with `Ctrl+C` when done testing.
+
+---
+
+### Step 6 — Go Live
+
+1. In `.env` set:
+   - `MOCK_TRADING=false`
+   - `ENABLE_TRADING=true`
+
+2. Start the bot:
+   ```bash
+   cargo run --release main run
+   ```
+
+3. The bot will:
+   - Monitor the whale’s trades in real time
+   - Size your orders (by your chosen strategy and limits)
+   - Place copy trades on Polymarket
+   - Log activity to CSV
+
+4. Stop anytime with `Ctrl+C` (it will finish current work then exit).
+
+---
+
+### Step 7 — Monitor and Adjust
+
+| Goal | Command |
+|------|--------|
+| Check balance & status | `cargo run --release setup system-status` |
+| Recent activity | `cargo run --release wallet check-recent-activity` |
+| Positions | `cargo run --release wallet check-positions-detailed` |
+| P&L / stats | `cargo run --release wallet check-my-stats` |
+
+To change risk or strategy: edit `.env` (e.g. `COPY_SIZE`, `MAX_ORDER_SIZE_USD`, `COPY_STRATEGY`), then restart the bot.
+
+---
+
+### Quick Reference — Before You Trade
+
+- [ ] Wallet has USDC (and a little MATIC for gas) on Polygon  
+- [ ] `.env` has correct `PRIVATE_KEY`, `FUNDER_ADDRESS`, `TARGET_WHALE_ADDRESS`, and RPC key  
+- [ ] `cargo run --release setup system-status` passes  
+- [ ] Token allowances set via `cargo run --release wallet check-allowance`  
+- [ ] Tested with `MOCK_TRADING=true`  
+- [ ] Using a dedicated wallet (not your main one)
 
 ---
 
 ## 0. 📁 Project Structure
 
-> **New to the codebase?** See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for a trader-friendly guide to the folder layout, binaries by purpose (setup, wallet, monitor, tools), and where to customize.
+> **New to the codebase?** See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for folder layout, binaries (setup, wallet, monitor, tools), and where to customize.
 
 ---
 
 ## 1. Quick Start
 
-**For beginners:** Follow these 5 steps to get started:
+**Minimal path** (after Rust is installed and repo cloned):
 
 ```bash
-# 1. Install Rust (if not already installed)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# 2. Clone the repository
-git clone <repository-url>
-cd rust
-
-# 3. Copy and configure .env file
-cp .env.example .env
-# Edit .env with your settings (see Configuration section)
-
-# 4. Validate setup
+# 1. Configure (interactive wizard)
 cargo run --release setup setup
+
+# 2. Validate
 cargo run --release setup system-status
 
-# 5. Approve tokens and start bot
+# 3. Approve tokens
 cargo run --release wallet check-allowance
+
+# 4. Run bot (use MOCK_TRADING=true in .env first to test)
 cargo run --release main run
 ```
 
-> **💡 Windows users:** Download Rust from [rustup.rs](https://rustup.rs/) and follow the installer. Then use PowerShell/CMD instead of bash.
+> **💡 Windows:** Install Rust from [rustup.rs](https://rustup.rs/), then use PowerShell or CMD for the commands above.
 
 ---
 
@@ -477,5 +594,20 @@ The bot monitors successful traders (whales) and automatically copies their trad
 - Private key should belong to an authorized signer
 - Set appropriate threshold (2-of-3, 3-of-5, etc.)
 - Monitor Safe activity through Safe interface
+
+---
+
+## 10. Troubleshooting
+
+| Issue | What to do |
+|-------|------------|
+| **"Insufficient balance"** | Add USDC (and MATIC for gas) to your bot wallet on Polygon. |
+| **"Allowance" / approval errors** | Run `cargo run --release wallet check-allowance` and complete approvals (Safe: use Safe UI). |
+| **No trades copying** | Confirm `TARGET_WHALE_ADDRESS` is correct and the whale is active. Check `ENABLE_TRADING=true` and `MOCK_TRADING=false` for live trading. |
+| **Bot exits or connection errors** | Check RPC key (Alchemy/Chainstack), network, and `setup system-status`. |
+| **Orders too big/small** | Adjust `COPY_SIZE`, `MAX_ORDER_SIZE_USD`, `MIN_ORDER_SIZE_USD` in `.env`. |
+| **Wrong strategy** | Set `COPY_STRATEGY` to `PERCENTAGE`, `FIXED`, or `ADAPTIVE` and set `COPY_SIZE` accordingly. |
+
+For more: run `cargo run --release -- --help` and `cargo run --release setup system-status` to validate config and connectivity.
 
 ---
