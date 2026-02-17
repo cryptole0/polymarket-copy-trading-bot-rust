@@ -262,11 +262,6 @@ fn process_order(
     let whale_shares = info.shares;
     let whale_price = info.price_per_share;
 
-    // Skip small trades to avoid negative expected value after fees
-    if should_skip_trade(whale_shares) {
-        return format!("SKIPPED_SMALL (<{:.0} shares)", MIN_WHALE_SHARES_TO_COPY);
-    }
-
     // Risk guard safety check
     let eval = guard.check_fast(&info.clob_token_id, whale_shares);
     match eval.decision {
