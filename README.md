@@ -58,6 +58,7 @@ cargo run --release -- --dry-run
 
 # 5. Live
 cargo run --release
+```
 
 ## Important Observations from Rust Live Tests
  - Sub-second reaction time → better average entry prices vs lagged bots
