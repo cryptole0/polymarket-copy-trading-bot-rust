@@ -26,11 +26,6 @@ In short-duration Polymarket markets (e.g. 15-min BTC windows), being first to d
 
 All sessions used real funds — no simulation.
 
-### Live Demo
-- Duration: ≈15 min
-- Net: **+$80**
-- Conditions: unattended, mainnet
-- [Watch video](https://github.com/user-attachments/assets/51a7009f-38f6-4148-8ea1-fff75b75586c)
 
 ## Core Features Implemented & Validated in Rust
 
