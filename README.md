@@ -30,8 +30,7 @@ All sessions used real funds — no simulation.
 - target: bitcoin up/down
 - Conditions: unattended, mainnet
 
-<video src="src/bin/resource/live.mp4" controls width="600"></video>
-
+https://github.com/user-attachments/assets/1ee3e044-0e85-426a-9b49-ca7030fa25a3
 
 ## Core Features Implemented & Validated in Rust
 
