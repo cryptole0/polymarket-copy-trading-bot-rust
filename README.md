@@ -26,13 +26,6 @@ In short-duration Polymarket markets (e.g. 15-min BTC windows), being first to d
 
 All sessions used real funds — no simulation.
 
-### Live Demo
-- Target: Bitcoin Up and Down 15 min market
-- Duration: ≈15 min(One Cycle)
-- Conditions: unattended, mainnet
-
-<video src="src/resource/live.mp4" controls width="700"></video>
-
 
 ## Core Features Implemented & Validated in Rust
 
